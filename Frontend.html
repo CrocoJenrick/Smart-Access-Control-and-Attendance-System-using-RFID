@@ -75,7 +75,7 @@
         </aside>
         <main class="main">
             <header class="topbar">
-                <div><div class="eyebrow">Monday, September 22, 2026</div><h1>Good morning, Admin</h1></div>
+                <div><div class="eyebrow" id="currentDateTime" aria-live="polite"></div><h1>Good morning, Admin</h1></div>
                 <div class="top-actions"><button class="icon-btn" id="themeToggle" title="Toggle dark mode" aria-label="Toggle dark mode"><i data-lucide="moon"></i></button><div style="position:relative"><button class="icon-btn" id="notificationButton" title="Notifications" aria-label="Notifications" aria-expanded="false"><i data-lucide="bell"></i><span class="notification-dot"></span></button><div class="popover hidden" id="notificationPopover"><h3>Notifications</h3><div class="popover-row"><span class="popover-icon"><i data-lucide="radio" size="14"></i></span><p>Reader is online and ready for scans.</p></div><div class="popover-row"><span class="popover-icon"><i data-lucide="info" size="14"></i></span><p>Activity feed refreshes every 3 seconds.</p></div></div></div><div style="position:relative"><button class="profile" id="profileButton" aria-expanded="false"><span class="avatar">AD</span><span>Admin</span><i data-lucide="chevron-down" size="15"></i></button><div class="popover hidden" id="profilePopover"><h3>Admin account</h3><p>Administrator access is enabled for this control panel.</p></div></div></div>
             </header>
             <section class="overview" id="overview" aria-label="Access overview">
@@ -102,7 +102,14 @@
         let users = [], logs = [];
         const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
         const initials = name => String(name || '?').split(' ').map(part => part[0]).slice(0, 2).join('').toUpperCase();
-        const formatTime = timestamp => new Date(timestamp).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+        const currentDateTime = document.getElementById('currentDateTime');
+        const formatTime = timestamp => new Date(timestamp).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+        function updateDateTime() {
+            currentDateTime.textContent = new Date().toLocaleString([], {
+                weekday:'long', month:'long', day:'numeric', year:'numeric',
+                hour:'2-digit', minute:'2-digit', second:'2-digit'
+            });
+        }
         function renderUsers() {
             const query = document.getElementById('userSearch').value.toLowerCase();
             const visibleUsers = users.filter(user => `${user.name} ${user.role} ${user.rfid_uid}`.toLowerCase().includes(query));
@@ -127,7 +134,7 @@
         const dialog = document.getElementById('userDialog'); document.getElementById('openUserDialog').addEventListener('click', () => dialog.showModal()); document.getElementById('closeDialog').addEventListener('click', () => dialog.close()); document.getElementById('cancelDialog').addEventListener('click', () => dialog.close());
         document.getElementById('userForm').addEventListener('submit', async event => { event.preventDefault(); await fetch('/api/users', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ name:document.getElementById('name').value, rfid_uid:document.getElementById('rfid_uid').value, role:document.getElementById('role').value }) }); event.target.reset(); dialog.close(); fetchUsers(); });
         const savedTheme = localStorage.getItem('accessos-theme'); if (savedTheme) document.documentElement.dataset.theme = savedTheme; const themeToggle = () => { const theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'; document.documentElement.dataset.theme = theme; localStorage.setItem('accessos-theme', theme); document.getElementById('themeToggle').innerHTML = `<i data-lucide="${theme === 'dark' ? 'sun' : 'moon'}"></i>`; lucide.createIcons(); }; document.getElementById('themeToggle').addEventListener('click', themeToggle); document.getElementById('settingsThemeToggle').addEventListener('click', themeToggle); document.getElementById('closeSettings').addEventListener('click', () => document.getElementById('settingsDialog').close());
-        lucide.createIcons(); fetchUsers(); fetchLogs(); setInterval(fetchLogs, 3000);
+        lucide.createIcons(); updateDateTime(); setInterval(updateDateTime, 1000); fetchUsers(); fetchLogs(); setInterval(fetchLogs, 3000);
     </script>
 </body>
 </html>
