@@ -19,6 +19,7 @@
             <button class="nav-link active" data-target="overview"><i data-lucide="layout-dashboard"></i><span>Overview</span></button>
             <button class="nav-link" data-target="people"><i data-lucide="users"></i><span>People</span></button>
             <button class="nav-link" data-target="activity"><i data-lucide="history"></i><span>Activity</span></button>
+            <button class="nav-link" data-target="history"><i data-lucide="calendar-days"></i><span>Daily history</span></button>
             <button class="nav-link" data-target="settings"><i data-lucide="settings-2"></i><span>Settings</span></button>
             <div class="sidebar-footer"><span class="status-dot"></span>Reader online<br><span style="margin-left:17px">Last sync just now</span></div>
         </aside>
@@ -38,8 +39,9 @@
                     <div class="panel-head"><div><h2>People & credentials</h2><p class="panel-subtitle">Manage who can access your spaces</p></div><div class="panel-tools"><label class="search"><i data-lucide="search" size="15"></i><input id="userSearch" type="text" placeholder="Search people..." aria-label="Search people"></label><button class="button primary" id="openUserDialog"><i data-lucide="plus" size="15"></i>Add person</button></div></div>
                     <div class="table-wrap"><table><thead><tr><th>Person</th><th>RFID credential</th><th>Status</th><th>Actions</th></tr></thead><tbody id="userTableBody"><tr><td colspan="4" class="empty">Loading people...</td></tr></tbody></table></div>
                 </div>
-                <div class="panel activity-panel" id="activity"><div class="panel-head"><div><h2>Live activity</h2><p class="panel-subtitle">The latest access attempts</p></div><span class="badge active">Live</span></div><ul class="activity-list" id="activityList"><li class="empty">Loading activity...</li></ul></div>
+                <div class="panel activity-panel" id="activity"><div class="panel-head"><div><h2>Live activity</h2><p class="panel-subtitle">The latest access attempts</p></div><div class="panel-tools"><span class="badge active">Live</span><button class="button danger-button" id="clearActivity">Clear</button></div></div><ul class="activity-list" id="activityList"><li class="empty">Loading activity...</li></ul></div>
             </section>
+            <section class="panel history-panel" id="history"><div class="panel-head"><div><h2>Daily scan history</h2><p class="panel-subtitle">Review scans from a specific day</p></div><div class="panel-tools"><label class="date-field">Date<input type="date" id="historyDate"></label><button class="button secondary" id="loadHistory">View day</button><button class="button danger-button" id="clearGranted">Clear granted</button><button class="button danger-button" id="clearDenied">Clear denied</button></div></div><div class="table-wrap"><table><thead><tr><th>Time</th><th>Person</th><th>RFID credential</th><th>Status</th></tr></thead><tbody id="historyTableBody"><tr><td colspan="4" class="empty">Select a date to view scans.</td></tr></tbody></table></div></section>
             <div id="settings" class="hidden" aria-hidden="true"></div>
         </main>
     </div>
@@ -48,11 +50,13 @@
     <script>
         const userTableBody = document.getElementById('userTableBody');
         const activityList = document.getElementById('activityList');
+        const historyTableBody = document.getElementById('historyTableBody');
         let users = [], logs = [];
         const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
         const initials = name => String(name || '?').split(' ').map(part => part[0]).slice(0, 2).join('').toUpperCase();
         const currentDateTime = document.getElementById('currentDateTime');
         const formatTime = timestamp => new Date(timestamp).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+        const today = () => { const date = new Date(); return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`; };
         function updateDateTime() {
             currentDateTime.textContent = new Date().toLocaleString([], {
                 weekday:'long', month:'long', day:'numeric', year:'numeric',
@@ -71,8 +75,16 @@
         }
         function updateMetrics() { const granted = logs.filter(log => log.status === 'Granted').length; const denied = logs.filter(log => log.status !== 'Granted').length; document.getElementById('totalUsers').textContent = users.length; document.getElementById('activeUsers').textContent = users.filter(user => user.is_active).length; document.getElementById('totalScans').textContent = logs.length; document.getElementById('grantedScans').textContent = granted; document.getElementById('deniedScans').textContent = denied; document.getElementById('grantRate').textContent = logs.length ? `${Math.round(granted / logs.length * 100)}%` : '0%'; }
         async function fetchUsers() { try { const response = await fetch('/api/users'); users = await response.json(); renderUsers(); updateMetrics(); } catch (error) { userTableBody.innerHTML = '<tr><td colspan="4" class="empty">Unable to connect to the access service.</td></tr>'; } }
-        async function fetchLogs() { try { const response = await fetch('/api/logs'); logs = await response.json(); renderActivity(); updateMetrics(); } catch (error) { activityList.innerHTML = '<li class="empty">Unable to load activity.</li>'; } }
+        async function fetchLogs() { try { const response = await fetch('/api/logs'); if (!response.ok) throw new Error('Unable to load activity'); logs = await response.json(); renderActivity(); updateMetrics(); } catch (error) { activityList.innerHTML = '<li class="empty">Unable to load activity.</li>'; } }
+        async function fetchHistory() { const selectedDate = document.getElementById('historyDate').value; if (!selectedDate) return; try { const response = await fetch(`/api/logs?date=${encodeURIComponent(selectedDate)}`); if (!response.ok) throw new Error('Unable to load history'); const history = await response.json(); historyTableBody.innerHTML = history.length ? history.map(log => `<tr><td>${formatTime(log.scan_time)}</td><td>${escapeHtml(log.name || 'Unknown visitor')}</td><td><span class="uid">${escapeHtml(log.rfid_uid)}</span></td><td><span class="badge ${log.status === 'Granted' ? 'active' : 'inactive'}">${escapeHtml(log.status)}</span></td></tr>`).join('') : '<tr><td colspan="4" class="empty">No scans found for this date.</td></tr>'; } catch (error) { historyTableBody.innerHTML = '<tr><td colspan="4" class="empty">Unable to load scan history.</td></tr>'; } }
+        async function deleteLogs(endpoint, confirmation) { if (!confirm(confirmation)) return; const response = await fetch(endpoint, { method:'DELETE' }); if (!response.ok) { alert('Unable to delete activity.'); return; } await fetchLogs(); await fetchHistory(); }
         document.getElementById('userSearch').addEventListener('input', renderUsers);
+        document.getElementById('historyDate').value = today();
+        document.getElementById('loadHistory').addEventListener('click', fetchHistory);
+        document.getElementById('historyDate').addEventListener('change', fetchHistory);
+        document.getElementById('clearActivity').addEventListener('click', () => deleteLogs('/api/logs', 'Delete all live activity and scan history?'));
+        document.getElementById('clearGranted').addEventListener('click', () => deleteLogs('/api/logs/granted', 'Delete all granted scans?'));
+        document.getElementById('clearDenied').addEventListener('click', () => deleteLogs('/api/logs/denied', 'Delete all denied scans?'));
         userTableBody.addEventListener('click', event => { const button = event.target.closest('button[data-user-id]'); if (!button) return; const user = users.find(item => item.id === Number(button.dataset.userId)); if (!user) return; if (button.classList.contains('toggle-user')) toggleStatus(user.id, user.name, user.role, user.is_active); if (button.classList.contains('delete-user')) deleteUser(user.id); });
         document.querySelectorAll('.nav-link').forEach(link => link.addEventListener('click', () => { document.querySelectorAll('.nav-link').forEach(item => item.classList.remove('active')); link.classList.add('active'); if (link.dataset.target === 'settings') document.getElementById('settingsDialog').showModal(); else document.getElementById(link.dataset.target).scrollIntoView({ behavior:'smooth', block:'start' }); }));
         document.getElementById('logoHome').addEventListener('click', () => document.getElementById('overview').scrollIntoView({ behavior:'smooth', block:'start' }));
@@ -83,7 +95,7 @@
         const dialog = document.getElementById('userDialog'); document.getElementById('openUserDialog').addEventListener('click', () => dialog.showModal()); document.getElementById('closeDialog').addEventListener('click', () => dialog.close()); document.getElementById('cancelDialog').addEventListener('click', () => dialog.close());
         document.getElementById('userForm').addEventListener('submit', async event => { event.preventDefault(); await fetch('/api/users', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ name:document.getElementById('name').value, rfid_uid:document.getElementById('rfid_uid').value, role:document.getElementById('role').value }) }); event.target.reset(); dialog.close(); fetchUsers(); });
         const savedTheme = localStorage.getItem('accessos-theme'); if (savedTheme) document.documentElement.dataset.theme = savedTheme; const themeToggle = () => { const theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'; document.documentElement.dataset.theme = theme; localStorage.setItem('accessos-theme', theme); document.getElementById('themeToggle').innerHTML = `<i data-lucide="${theme === 'dark' ? 'sun' : 'moon'}"></i>`; lucide.createIcons(); }; document.getElementById('themeToggle').addEventListener('click', themeToggle); document.getElementById('settingsThemeToggle').addEventListener('click', themeToggle); document.getElementById('closeSettings').addEventListener('click', () => document.getElementById('settingsDialog').close());
-        lucide.createIcons(); updateDateTime(); setInterval(updateDateTime, 1000); fetchUsers(); fetchLogs(); setInterval(fetchLogs, 3000);
+        lucide.createIcons(); updateDateTime(); setInterval(updateDateTime, 1000); fetchUsers(); fetchLogs(); fetchHistory(); setInterval(fetchLogs, 3000);
     </script>
 </body>
 </html>
