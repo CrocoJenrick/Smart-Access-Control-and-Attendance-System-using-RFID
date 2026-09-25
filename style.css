@@ -33,6 +33,10 @@ h1,h2,p { margin:0; } h1 { font:700 clamp(25px,3vw,34px) 'Space Grotesk'; letter
 .content-grid { display:grid; grid-template-columns:minmax(0,1.3fr) minmax(340px,.7fr); gap:20px; align-items:start; }
 .panel { background:var(--surface); border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow); overflow:hidden; }
 .panel-head { display:flex; align-items:flex-start; justify-content:space-between; gap:15px; padding:22px 22px 17px; }
+.history-panel { margin-top:20px; }
+.date-field { display:flex; align-items:center; gap:7px; color:var(--muted); font-size:11px; font-weight:700; }
+.date-field input { height:36px; border:1px solid var(--line); border-radius:8px; padding:0 9px; color:var(--text); background:var(--surface); }
+.danger-button { color:var(--red); background:var(--red-soft); }
 .panel-subtitle { color:var(--muted); font-size:12px; margin-top:5px; } .panel-tools { display:flex; gap:8px; }
 .search { display:flex; align-items:center; gap:8px; border:1px solid var(--line); border-radius:8px; padding:0 10px; height:36px; color:var(--muted); background:var(--surface); }
 .search input { width:150px; border:0; outline:0; color:var(--text); background:transparent; }
